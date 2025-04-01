@@ -26,7 +26,7 @@ def resource_path(relative_path):
 
 class SingleInstanceChecker:
     def __init__(self):
-        self.mutexname = "Global\\StickyNoteAppMutex"
+        self.mutexname = "Global\\MarkNoteAppMutex"
         self.mutex = win32event.CreateMutex(None, False, self.mutexname)
         self.last_error = win32api.GetLastError()
 
@@ -510,13 +510,13 @@ class MarkdownPreview(QTextEdit):
         )
         self.setHtml(html)
 
-class StickyNote(QWidget):
+class MarkNote(QWidget):
     def __init__(self, id, app=None):
         super().__init__()
         self.id = id
         self.app = app
         self.is_modified = False
-        self.setWindowTitle(f"📝 便签 {id}")
+        self.setWindowTitle(f"📝 MarkNote {id}")
         
         # 设置默认大小
         self.default_size = QSize(450, 600)
@@ -534,17 +534,18 @@ class StickyNote(QWidget):
         self.save_shortcut.activated.connect(self.manual_save)
 
         # 获取保存路径
-        app_settings = QSettings("MyCompany", "StickyNoteApp")
+        app_settings = QSettings("MyCompany", "MarkNoteApp")
         default_save_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data")
         save_path = app_settings.value("save_path", default_save_path)
         os.makedirs(save_path, exist_ok=True)
         
         # 修改设置保存路径
         self.settings = QSettings(
-            os.path.join(save_path, f"DesktopNote{id}.ini"),
+            os.path.join(save_path, f"MarkNote{id}.ini"),
             QSettings.IniFormat
         )
         self.settings.setFallbacksEnabled(False)  # 禁用回退机制
+        self.settings.setIniCodec("UTF-8")
         
         self.resize_margin = 8
         self.corner_size = 16
@@ -584,7 +585,7 @@ class StickyNote(QWidget):
         top_bar_layout.setSpacing(16)  # 增加按钮间距
 
         # 创建标题标签
-        self.title_label = QLabel(f"📝 便签 {id}")
+        self.title_label = QLabel(f"📝 MarkNote {id}")
         self.title_label.setStyleSheet("""
             QLabel {
                 color: #2c3e50;
@@ -1109,7 +1110,7 @@ class StickyNote(QWidget):
             self.is_position_fixed = self.settings.value('is_position_fixed', False, type=bool)
             
             # 加载字体设置，使用应用程序级别的默认设置
-            app_settings = QSettings("MyCompany", "StickyNoteApp")
+            app_settings = QSettings("MyCompany", "MarkNoteApp")
             font_family = app_settings.value("default_font_family", "SF Pro Text")
             font_size = app_settings.value("default_font_size", 13, type=int)
             font = QFont(font_family, font_size)
@@ -1122,12 +1123,12 @@ class StickyNote(QWidget):
             self.update_title()
             
             # 打印调试信息
-            print(f"加载成功 - 便签 {self.id}")
+            print(f"加载成功 - MarkNote {self.id}")
             print(f"加载路径: {self.settings.fileName()}")
             print(f"文本内容长度: {len(text_content)}")
             print(f"待办事项数量: {len(todo_items)}")
         except Exception as e:
-            print(f"加载失败 - 便签 {self.id}: {str(e)}")
+            print(f"加载失败 - MarkNote {self.id}: {str(e)}")
 
     def adjust_size(self):
         pass
@@ -1179,7 +1180,7 @@ class StickyNote(QWidget):
             self.save_status.setToolTip("")
 
     def save_content(self):
-        """保存便签内容"""
+        """保存MarkNote内容"""
         try:
             settings_dict = {}
             
@@ -1223,12 +1224,12 @@ class StickyNote(QWidget):
             self.update_title()
             
             # 打印调试信息
-            print(f"保存成功 - 便签 {self.id}")
+            print(f"保存成功 - MarkNote {self.id}")
             print(f"保存路径: {self.settings.fileName()}")
             print(f"文本内容长度: {len(text_content)}")
             print(f"待办事项数量: {len(todo_items)}")
         except Exception as e:
-            print(f"保存失败 - 便签 {self.id}: {str(e)}")
+            print(f"保存失败 - MarkNote {self.id}: {str(e)}")
 
     def manual_save(self):
         """手动保存内容"""
@@ -1291,30 +1292,39 @@ class StickyNote(QWidget):
         self.handle_content_changed()
 
     def update_save_path(self, new_path):
-        """更新保存路径"""
+        """更新便签的保存路径"""
         try:
-            # 保存当前内容
-            current_content = {}
-            for key in self.settings.allKeys():
-                current_content[key] = self.settings.value(key)
+            old_file_path = self.settings.fileName()
+            new_file_path = os.path.join(new_path, f"MarkNote{self.id}.ini")
             
-            # 创建新的设置对象
-            new_settings = QSettings(
-                os.path.join(new_path, f"DesktopNote{self.id}.ini"),
-                QSettings.IniFormat
-            )
-            new_settings.setFallbacksEnabled(False)
+            # 确保新路径存在
+            os.makedirs(os.path.dirname(new_file_path), exist_ok=True)
             
-            # 转移所有设置到新路径
-            for key, value in current_content.items():
-                new_settings.setValue(key, value)
+            # 将旧设置文件的内容写入新文件
+            old_settings = QSettings(old_file_path, QSettings.IniFormat)
+            old_settings.setIniCodec("UTF-8")
+            new_settings = QSettings(new_file_path, QSettings.IniFormat)
+            new_settings.setIniCodec("UTF-8")
             
-            # 更新设置对象
+            for key in old_settings.allKeys():
+                new_settings.setValue(key, old_settings.value(key))
+            
+            new_settings.sync() # 确保写入完成
+
+            # 更新当前实例的设置对象指向新文件
             self.settings = new_settings
+            print(f"MarkNote {self.id} 的保存路径已更新为: {new_file_path}")
             
-            print(f"便签 {self.id} 的保存路径已更新到: {new_path}")
+            # 可选：如果需要，可以在此删除旧文件
+            # if os.path.exists(old_file_path) and old_file_path != new_file_path:
+            #     try:
+            #         os.remove(old_file_path)
+            #         print(f"旧文件已删除: {old_file_path}")
+            #     except Exception as e:
+            #         print(f"删除旧文件失败: {str(e)}")
+
         except Exception as e:
-            print(f"更新便签 {self.id} 的保存路径时出错: {str(e)}")
+            print(f"更新MarkNote {self.id} 保存路径时出错: {str(e)}")
 
 class SettingsDialog(QDialog):
     def __init__(self, app, parent=None):
@@ -1326,7 +1336,7 @@ class SettingsDialog(QDialog):
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         
         # 初始化 QSettings
-        self.qsettings = QSettings("MyCompany", "StickyNoteApp")
+        self.qsettings = QSettings("MyCompany", "MarkNoteApp")
         
         # 创建主布局
         self.setup_ui()
@@ -1456,7 +1466,7 @@ class SettingsDialog(QDialog):
                 winreg.KEY_READ
             )
             try:
-                value, _ = winreg.QueryValueEx(key, "StickyNote")
+                value, _ = winreg.QueryValueEx(key, "MarkNote")
                 winreg.CloseKey(key)
                 return True
             except WindowsError:
@@ -1491,14 +1501,14 @@ class SettingsDialog(QDialog):
                 command = f'"{app_path}"'
                 winreg.SetValueEx(
                     key,
-                    "StickyNote",
+                    "MarkNote",
                     0,
                     winreg.REG_SZ,
                     command
                 )
             else:
                 try:
-                    winreg.DeleteValue(key, "StickyNote")
+                    winreg.DeleteValue(key, "MarkNote")
                 except WindowsError:
                     pass
             winreg.CloseKey(key)
@@ -1518,7 +1528,7 @@ class SettingsDialog(QDialog):
             success = True
             if os.path.exists(old_path):
                 for filename in os.listdir(old_path):
-                    if filename.startswith("DesktopNote") and filename.endswith(".ini"):
+                    if filename.startswith("MarkNote") and filename.endswith(".ini"):
                         old_file = os.path.join(old_path, filename)
                         new_file = os.path.join(new_path, filename)
                         
@@ -1554,13 +1564,14 @@ class SettingsDialog(QDialog):
             # 应用字体设置到所有便签
             try:
                 for note in self.app.notes:
-                    if hasattr(note, 'text_edit') and note.text_edit:
-                        font = QFont(font_family, font_size)
-                        note.text_edit.setFont(font)
-                    if hasattr(note, 'settings'):
-                        note.settings.setValue("font_family", font_family)
-                        note.settings.setValue("font_size", font_size)
-                print("字体设置已应用到所有便签")
+                    if isinstance(note, MarkNote):
+                        if hasattr(note, 'text_edit') and note.text_edit:
+                            font = QFont(font_family, font_size)
+                            note.text_edit.setFont(font)
+                        if hasattr(note, 'settings'):
+                            note.settings.setValue("font_family", font_family)
+                            note.settings.setValue("font_size", font_size)
+                print("字体设置已应用到所有 MarkNote")
             except Exception as e:
                 print(f"应用字体设置时出错: {str(e)}")
             
@@ -1591,13 +1602,13 @@ class SettingsDialog(QDialog):
                         # 更新所有便签的保存路径
                         try:
                             for note in self.app.notes:
-                                if hasattr(note, 'update_save_path'):
+                                if isinstance(note, MarkNote) and hasattr(note, 'update_save_path'):
                                     note.update_save_path(new_path)
                             # 更新应用程序的数据目录
                             self.app.data_dir = new_path
-                            print("保存路径已应用到所有便签")
+                            print("保存路径已应用到所有 MarkNote")
                         except Exception as e:
-                            print(f"更新便签保存路径时出错: {str(e)}")
+                            print(f"更新MarkNote保存路径时出错: {str(e)}")
                             
                         QMessageBox.information(self, "成功", "保存路径已更改，数据已移动到新位置")
                     else:
@@ -1623,7 +1634,7 @@ class SettingsDialog(QDialog):
             # 即使出错也接受对话框
             self.accept()
 
-class StickyNoteApp(QApplication):
+class MarkNoteApp(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
         
@@ -1631,12 +1642,12 @@ class StickyNoteApp(QApplication):
         self.setQuitOnLastWindowClosed(False)
         
         # 设置应用程序信息
-        self.setApplicationName("StickyNote")
+        self.setApplicationName("MarkNote")
         self.setApplicationVersion("1.0.0")
         self.setOrganizationName("MyCompany")
         
         # 初始化应用程序设置
-        self.settings = QSettings("MyCompany", "StickyNoteApp")
+        self.settings = QSettings("MyCompany", "MarkNoteApp")
         
         # 初始化便签列表和默认大小
         self.notes = []
@@ -1662,30 +1673,34 @@ class StickyNoteApp(QApplication):
         # 初始化系统托盘
         self.init_tray()
         
-        # 创建第一个便签
-        self.create_note()
+        # 加载便签 (确保先加载再创建)
+        self.load_notes()
+        
+        # 如果没有加载到任何便签，则创建第一个
+        if not self.notes:
+            self.create_note()
 
     def init_tray(self):
         # 创建一个隐藏的窗口作为系统托盘菜单的父窗口
         self.tray_menu_host = QWidget()
         self.tray_menu_host.hide()
 
-        icon_path = resource_path("sticky_note_icon.ico")
+        icon_path = resource_path("mark_note_icon.ico")
         icon = QIcon(icon_path)
         self.tray = QSystemTrayIcon(icon, self.tray_menu_host)
         self.setWindowIcon(icon)
         self.tray.setVisible(True)
         self.menu = QMenu(self.tray_menu_host)
 
-        new_action = QAction("新建便签", self.tray_menu_host)
+        new_action = QAction("新建 MarkNote", self.tray_menu_host)
         new_action.triggered.connect(self.create_note)
         self.menu.addAction(new_action)
 
-        restore_action = QAction("显示所有便签", self.tray_menu_host)
+        restore_action = QAction("显示所有 MarkNote", self.tray_menu_host)
         restore_action.triggered.connect(self.show_all_notes)
         self.menu.addAction(restore_action)
 
-        hide_action = QAction("隐藏所有便签", self.tray_menu_host)
+        hide_action = QAction("隐藏所有 MarkNote", self.tray_menu_host)
         hide_action.triggered.connect(self.hide_all_notes)
         self.menu.addAction(hide_action)
 
@@ -1695,20 +1710,20 @@ class StickyNoteApp(QApplication):
         setting_action.triggered.connect(self.show_settings)
         self.menu.addAction(setting_action)
 
-        quit_action = QAction("退出", self.tray_menu_host)
+        quit_action = QAction("退出 MarkNote", self.tray_menu_host)
         quit_action.triggered.connect(self.quit_app)
         self.menu.addAction(quit_action)
 
         self.tray.setContextMenu(self.menu)
-        self.tray.setToolTip("桌面便签")
+        self.tray.setToolTip("MarkNote")
         self.tray.activated.connect(self.on_tray_activated)
         self.tray.show()
 
         self.notes_visible = True
 
     def create_note(self):
-        """创建新便签"""
-        note = StickyNote(len(self.notes), self)
+        """创建新 MarkNote"""
+        note = MarkNote(len(self.notes), self)
         self.notes.append(note)
         note.show()
         return note
@@ -1758,59 +1773,80 @@ class StickyNoteApp(QApplication):
             traceback.print_exc()
 
     def quit_app(self):
-        """自定义退出函数，确保保存所有便签内容并正确清理资源"""
-        try:
-            # 保存所有便签的内容
-            for note in self.notes:
-                if note.is_modified:
-                    note.save_content()
-                # 关闭便签窗口
-                note.close()
-            print("所有便签内容已保存")
-            
-            # 清理系统托盘图标
+        """退出应用程序"""
+        print("开始退出程序...")
+        # 尝试正常关闭所有便签窗口并保存
+        for note in self.notes[:]:
+            if isinstance(note, MarkNote):
+                try:
+                    print(f"正在关闭 MarkNote {note.id}")
+                    note.close()
+                except Exception as e:
+                    print(f"关闭 MarkNote {note.id} 时出错: {str(e)}")
+        
+        # 确保设置已保存
+        if hasattr(self, 'settings') and self.settings:
+            self.settings.sync()
+            print("应用程序设置已同步")
+        
+        # 清理系统托盘图标
+        if hasattr(self, 'tray') and self.tray:
             self.tray.hide()
             self.tray.deleteLater()
-            
-            # 关闭托盘菜单宿主窗口
+            print("系统托盘图标已隐藏并计划删除")
+        
+        # 清理托盘菜单宿主窗口
+        if hasattr(self, 'tray_menu_host') and self.tray_menu_host:
             self.tray_menu_host.close()
             self.tray_menu_host.deleteLater()
-            
-        except Exception as e:
-            print(f"保存便签内容时出错: {str(e)}")
-        finally:
-            # 确保应用程序退出
-            QTimer.singleShot(100, self.quit)  # 使用延迟确保清理完成后再退出
+            print("托盘菜单宿主窗口已关闭并计划删除")
+        
+        print("准备退出应用程序循环")
+        # 延迟退出确保清理完成
+        QTimer.singleShot(100, self.quit)
 
     def load_notes(self):
-        """加载已保存的便签"""
+        """加载已保存的 MarkNote"""
         try:
-            note_count = self.settings.value("note_count", 0, type=int)
+            save_path = self.data_dir
+            print(f"从以下路径加载 MarkNote: {save_path}")
             
-            for i in range(note_count):
-                note_id = self.settings.value(f"note_{i}/id", i, type=int)
-                if note_id is not None:
-                    note = StickyNote(note_id, self)
-                    self.notes.append(note)
-                    note.show()
+            found_notes = False
+            if os.path.exists(save_path):
+                for filename in os.listdir(save_path):
+                    if filename.startswith("MarkNote") and filename.endswith(".ini"):
+                        try:
+                            file_path = os.path.join(save_path, filename)
+                            note_settings = QSettings(file_path, QSettings.IniFormat)
+                            note_settings.setIniCodec("UTF-8")
+                            note_id_str = filename.replace("MarkNote", "").replace(".ini", "")
+                            note_id = int(note_id_str)
+                            
+                            print(f"加载 MarkNote {note_id} 从 {filename}")
+                            note = MarkNote(note_id, self)
+                            note.load_settings()
+                            self.notes.append(note)
+                            note.show()
+                            found_notes = True
+                        except Exception as e:
+                            print(f"加载文件 {filename} 失败: {str(e)}")
             
-            if not self.notes:  # 如果没有加载到任何便签
-                self.create_note()
+            if found_notes:
+                print(f"成功加载 {len(self.notes)} 个 MarkNote")
+            else:
+                print("未找到任何已保存的 MarkNote")
+                
         except Exception as e:
-            print(f"加载便签时出错: {str(e)}")
-            # 如果加载失败，创建一个新便签
-            if not self.notes:
-                self.create_note()
+            print(f"加载 MarkNote 时出错: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 if __name__ == '__main__':
     # 检查是否已有实例在运行
     instance_checker = SingleInstanceChecker()
     if instance_checker.is_another_instance_running():
-        # 如果已经有实例在运行，显示提示消息并退出
-        app = QApplication(sys.argv)
-        QMessageBox.information(None, "提示", "便签程序已经在运行中")
-        sys.exit(0)
-    else:
-        # 如果是第一个实例，正常运行程序
-        app = StickyNoteApp(sys.argv)
-        sys.exit(app.exec_())
+        QMessageBox.warning(None, "MarkNote 已在运行", "MarkNote 应用程序已经在运行中。")
+        sys.exit(1)
+        
+    app = MarkNoteApp(sys.argv)
+    sys.exit(app.exec_())

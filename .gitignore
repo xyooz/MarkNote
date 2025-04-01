@@ -1,2 +1,23 @@
-daobao.bat
+# Build artifacts
+build/
+dist/ 
+*.spec
+
+# Batch files
+build.bat
+
+# Build scripts
 build.py
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.venv/
+env/
+.env/
+virtualenv/
