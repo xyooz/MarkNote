@@ -1,0 +1,3 @@
+PyQt5>=5.15.0
+pywin32>=305
+markdown>=3.4.3 
