@@ -9,7 +9,8 @@ from PyQt5.QtWidgets import (
     QApplication, QTextEdit, QWidget, QVBoxLayout, QSplitter,
     QSystemTrayIcon, QMenu, QAction, QMessageBox, QShortcut, QPushButton, QHBoxLayout,
     QColorDialog, QDialog, QLabel, QLineEdit, QDialogButtonBox, QCheckBox, QScrollArea,
-    QListWidget, QListWidgetItem, QToolBar, QFontComboBox, QSpinBox, QComboBox, QFileDialog
+    QListWidget, QListWidgetItem, QToolBar, QFontComboBox, QSpinBox, QComboBox, QFileDialog,
+    QGroupBox
 )
 from PyQt5.QtCore import Qt, QSettings, QPoint, QSize, QEvent, QTimer
 from PyQt5.QtGui import QIcon, QFont, QKeySequence, QColor, QCursor, QTextCharFormat, QSyntaxHighlighter
@@ -510,9 +511,10 @@ class MarkdownPreview(QTextEdit):
         self.setHtml(html)
 
 class StickyNote(QWidget):
-    def __init__(self, id):
+    def __init__(self, id, app=None):
         super().__init__()
         self.id = id
+        self.app = app
         self.is_modified = False
         self.setWindowTitle(f"📝 便签 {id}")
         
@@ -665,7 +667,7 @@ class StickyNote(QWidget):
 
         # 添加预览切换按钮
         self.preview_btn = QPushButton("👁️")  # 使用更清晰的眼睛图标
-        self.preview_btn.setFixedSize(31, 31)  # 增大按钮尺寸
+        self.preview_btn.setFixedSize(29, 29)  # 增大按钮尺寸
         self.preview_btn.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
@@ -1315,182 +1317,137 @@ class StickyNote(QWidget):
             print(f"更新便签 {self.id} 的保存路径时出错: {str(e)}")
 
 class SettingsDialog(QDialog):
-    def __init__(self, app):
-        super().__init__()
+    def __init__(self, app, parent=None):
+        super().__init__(parent)
         self.app = app
         self.setWindowTitle("设置")
-        self.setFixedSize(400, 300)  # 增加高度以容纳字体设置
-
+        # 移除固定大小，让对话框自适应内容，并稍微增加宽度
+        self.setMinimumWidth(450)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        
+        # 初始化 QSettings
+        self.qsettings = QSettings("MyCompany", "StickyNoteApp")
+        
+        # 创建主布局
+        self.setup_ui()
+    
+    def setup_ui(self):
         layout = QVBoxLayout()
-
+        layout.setSpacing(10)
+        
         # 开机启动设置
-        self.autostart_checkbox = QCheckBox("开机启动", self)
+        autostart_group = QGroupBox("开机启动")
+        autostart_layout = QVBoxLayout()
+        
+        self.autostart_checkbox = QCheckBox("开机自动启动")
         self.autostart_checkbox.setChecked(self.is_autostart_enabled())
-        layout.addWidget(self.autostart_checkbox)
-
+        autostart_layout.addWidget(self.autostart_checkbox)
+        
+        autostart_group.setLayout(autostart_layout)
+        layout.addWidget(autostart_group)
+        
         # 字体设置
-        font_group = QWidget()
-        font_layout = QVBoxLayout(font_group)
-        font_layout.setContentsMargins(0, 10, 0, 10)
+        font_group = QGroupBox("字体设置")
+        font_layout = QVBoxLayout()
         
-        font_title = QLabel("字体设置")
-        font_title.setStyleSheet("font-weight: bold;")
-        font_layout.addWidget(font_title)
-        
-        font_row = QWidget()
-        font_row_layout = QHBoxLayout(font_row)
-        font_row_layout.setContentsMargins(0, 0, 0, 0)
-        
-        font_label = QLabel("字体：")
+        # 字体选择
+        font_layout.addWidget(QLabel("字体:"))
         self.font_combo = QFontComboBox()
-        current_font = self.app.notes[0].text_edit.font() if self.app.notes else QFont("SF Pro Text", 13)
-        self.font_combo.setCurrentFont(current_font)
         
-        font_row_layout.addWidget(font_label)
-        font_row_layout.addWidget(self.font_combo)
+        # 安全获取当前字体
+        try:
+            default_font = "Microsoft YaHei"
+            current_font = self.qsettings.value("default_font_family", default_font)
+            self.font_combo.setCurrentFont(QFont(current_font))
+        except:
+            self.font_combo.setCurrentFont(QFont("Microsoft YaHei"))
+            
+        font_layout.addWidget(self.font_combo)
         
-        font_layout.addWidget(font_row)
-        
-        size_row = QWidget()
-        size_row_layout = QHBoxLayout(size_row)
-        size_row_layout.setContentsMargins(0, 0, 0, 0)
-        
-        size_label = QLabel("字号：")
+        # 字号选择
+        font_layout.addWidget(QLabel("字号:"))
         self.size_spin = QSpinBox()
         self.size_spin.setRange(8, 72)
-        self.size_spin.setValue(current_font.pointSize())
         
-        size_row_layout.addWidget(size_label)
-        size_row_layout.addWidget(self.size_spin)
-        size_row_layout.addStretch()
+        # 安全获取当前字号
+        try:
+            font_size = self.qsettings.value("default_font_size", 12, type=int)
+            self.size_spin.setValue(font_size)
+        except:
+            self.size_spin.setValue(12)
+            
+        font_layout.addWidget(self.size_spin)
         
-        font_layout.addWidget(size_row)
+        font_group.setLayout(font_layout)
         layout.addWidget(font_group)
-
-        # 数据保存路径设置
-        path_group = QWidget()
-        path_layout = QHBoxLayout(path_group)
-        path_layout.setContentsMargins(0, 0, 0, 0)
         
-        path_label = QLabel("数据保存路径：")
+        # 保存路径设置
+        path_group = QGroupBox("数据保存位置")
+        path_layout = QVBoxLayout()
+        
         self.path_edit = QLineEdit()
-        self.path_edit.setText(self.get_current_save_path())
-        self.path_edit.setReadOnly(True)
+        
+        # 安全获取当前保存路径
+        try:
+            default_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data")
+            save_path = self.qsettings.value("save_path", default_path)
+            self.path_edit.setText(save_path)
+        except:
+            default_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data")
+            self.path_edit.setText(default_path)
+            
+        path_layout.addWidget(self.path_edit)
+        
         browse_btn = QPushButton("浏览...")
         browse_btn.clicked.connect(self.browse_save_path)
-        
-        path_layout.addWidget(path_label)
-        path_layout.addWidget(self.path_edit, 1)
         path_layout.addWidget(browse_btn)
         
+        path_group.setLayout(path_layout)
         layout.addWidget(path_group)
-
-        # 添加说明文本
-        note_label = QLabel("注意：更改保存路径后，现有的便签数据将被移动到新路径")
-        note_label.setStyleSheet("color: #666; font-size: 10pt;")
-        note_label.setWordWrap(True)
-        layout.addWidget(note_label)
-
-        layout.addStretch()
-
+        
         # 按钮
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.save)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        button_box.accepted.connect(self.save_settings)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
         self.setLayout(layout)
-
-    def get_current_save_path(self):
-        """获取当前保存路径"""
-        settings = QSettings("MyCompany", "StickyNoteApp")
-        default_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data")
-        return settings.value("save_path", default_path)
+        
+    def closeEvent(self, event):
+        """处理窗口关闭事件"""
+        print("设置对话框已关闭")
+        event.accept()
+        
+    def accept(self):
+        """重写接受方法，确保正确处理对话框关闭"""
+        print("设置对话框接受(Ok)")
+        super().accept()
+        
+    def reject(self):
+        """重写拒绝方法，确保正确处理对话框关闭"""
+        print("设置对话框拒绝(Cancel)")
+        super().reject()
 
     def browse_save_path(self):
         """浏览并选择新的保存路径"""
-        current_path = self.path_edit.text()
-        new_path = QFileDialog.getExistingDirectory(
-            self,
-            "选择保存路径",
-            current_path,
-            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
-        )
-        if new_path:
-            self.path_edit.setText(new_path)
-
-    def move_data_to_new_path(self, old_path, new_path):
-        """移动数据到新路径"""
         try:
-            # 确保新路径存在
-            os.makedirs(new_path, exist_ok=True)
-            
-            # 获取所有便签数据文件
-            if os.path.exists(old_path):
-                for filename in os.listdir(old_path):
-                    if filename.startswith("DesktopNote"):
-                        old_file = os.path.join(old_path, filename)
-                        new_file = os.path.join(new_path, filename)
-                        # 移动文件
-                        if os.path.exists(old_file):
-                            shutil.move(old_file, new_file)
-            
-            return True
+            current_path = self.path_edit.text()
+            new_path = QFileDialog.getExistingDirectory(
+                self,
+                "选择保存路径",
+                current_path,
+                QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+            )
+            if new_path:
+                self.path_edit.setText(new_path)
         except Exception as e:
-            print(f"移动数据失败: {str(e)}")
-            return False
-
-    def save(self):
-        try:
-            # 保存开机启动设置
-            self.set_autostart(self.autostart_checkbox.isChecked())
-            
-            # 保存字体设置
-            font = self.font_combo.currentFont()
-            font.setPointSize(self.size_spin.value())
-            settings = QSettings("MyCompany", "StickyNoteApp")
-            settings.setValue("default_font_family", font.family())
-            settings.setValue("default_font_size", font.pointSize())
-            
-            # 应用字体设置到所有便签
-            for note in self.app.notes:
-                note.text_edit.setFont(font)
-                note.settings.setValue("font_family", font.family())
-                note.settings.setValue("font_size", font.pointSize())
-            
-            # 保存路径设置
-            new_path = self.path_edit.text()
-            old_path = settings.value("save_path", os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data"))
-            
-            # 只有当路径真正改变时才进行移动
-            if new_path != old_path and os.path.normpath(new_path) != os.path.normpath(old_path):
-                # 询问用户是否确认更改
-                reply = QMessageBox.question(
-                    self,
-                    "确认更改",
-                    "更改保存路径将移动所有便签数据到新位置，是否继续？",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No
-                )
-                
-                if reply == QMessageBox.Yes:
-                    # 移动数据
-                    if self.move_data_to_new_path(old_path, new_path):
-                        settings.setValue("save_path", new_path)
-                        # 更新所有便签的保存路径
-                        for note in self.app.notes:
-                            note.update_save_path(new_path)
-                        QMessageBox.information(self, "成功", "保存路径已更改，数据已移动到新位置")
-                    else:
-                        QMessageBox.warning(self, "错误", "移动数据失败，保存路径未更改")
-                        return
-            
-            self.accept()
-        except Exception as e:
-            print(f"保存设置时出错: {str(e)}")
-            QMessageBox.warning(self, "错误", f"保存设置失败: {str(e)}")
+            print(f"选择路径出错: {str(e)}")
+            QMessageBox.warning(self, "错误", f"选择路径失败: {str(e)}")
 
     def is_autostart_enabled(self):
+        """检查是否设置了开机启动"""
         try:
             key = winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
@@ -1509,6 +1466,7 @@ class SettingsDialog(QDialog):
             return False
 
     def set_autostart(self, enable):
+        """设置是否开机启动"""
         try:
             key = winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
@@ -1529,13 +1487,6 @@ class SettingsDialog(QDialog):
                 # 确保路径是绝对路径
                 app_path = os.path.abspath(app_path)
                 
-                # 创建数据目录
-                data_dir = os.path.join(os.path.dirname(app_path), "data")
-                os.makedirs(data_dir, exist_ok=True)
-                
-                # 设置工作目录为程序所在目录
-                working_dir = os.path.dirname(app_path)
-                
                 # 使用完整路径和引号包裹
                 command = f'"{app_path}"'
                 winreg.SetValueEx(
@@ -1551,18 +1502,141 @@ class SettingsDialog(QDialog):
                 except WindowsError:
                     pass
             winreg.CloseKey(key)
+            return True
         except Exception as e:
             print(f"设置开机启动时出错: {str(e)}")
             QMessageBox.warning(self, "错误", f"设置开机启动失败: {str(e)}")
+            return False
+
+    def move_data_to_new_path(self, old_path, new_path):
+        """移动数据到新路径"""
+        try:
+            # 确保新路径存在
+            os.makedirs(new_path, exist_ok=True)
+            
+            # 获取所有便签数据文件
+            success = True
+            if os.path.exists(old_path):
+                for filename in os.listdir(old_path):
+                    if filename.startswith("DesktopNote") and filename.endswith(".ini"):
+                        old_file = os.path.join(old_path, filename)
+                        new_file = os.path.join(new_path, filename)
+                        
+                        try:
+                            # 复制文件而不是移动，这样更安全
+                            shutil.copy2(old_file, new_file)
+                        except Exception as e:
+                            print(f"复制文件 {filename} 失败: {str(e)}")
+                            success = False
+            
+            return success
+        except Exception as e:
+            print(f"移动数据失败: {str(e)}")
+            return False
+
+    def save_settings(self):
+        """保存设置"""
+        try:
+            print("开始保存设置...")
+            
+            # 保存开机启动设置
+            autostart_result = self.set_autostart(self.autostart_checkbox.isChecked())
+            print(f"开机启动设置结果: {autostart_result}")
+            
+            # 保存字体设置
+            font_family = self.font_combo.currentFont().family()
+            font_size = self.size_spin.value()
+            
+            self.qsettings.setValue("default_font_family", font_family)
+            self.qsettings.setValue("default_font_size", font_size)
+            print(f"字体设置已保存: {font_family}, {font_size}")
+            
+            # 应用字体设置到所有便签
+            try:
+                for note in self.app.notes:
+                    if hasattr(note, 'text_edit') and note.text_edit:
+                        font = QFont(font_family, font_size)
+                        note.text_edit.setFont(font)
+                    if hasattr(note, 'settings'):
+                        note.settings.setValue("font_family", font_family)
+                        note.settings.setValue("font_size", font_size)
+                print("字体设置已应用到所有便签")
+            except Exception as e:
+                print(f"应用字体设置时出错: {str(e)}")
+            
+            # 保存路径设置
+            new_path = self.path_edit.text()
+            default_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data")
+            old_path = self.qsettings.value("save_path", default_path)
+            
+            # 只有当路径真正改变时才进行移动
+            path_changed = False
+            if new_path != old_path and os.path.normpath(new_path) != os.path.normpath(old_path):
+                # 询问用户是否确认更改
+                reply = QMessageBox.question(
+                    self,
+                    "确认更改",
+                    "更改保存路径将移动所有便签数据到新位置，是否继续？",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    # 移动数据
+                    if self.move_data_to_new_path(old_path, new_path):
+                        self.qsettings.setValue("save_path", new_path)
+                        path_changed = True
+                        print(f"保存路径已更改: {new_path}")
+                        
+                        # 更新所有便签的保存路径
+                        try:
+                            for note in self.app.notes:
+                                if hasattr(note, 'update_save_path'):
+                                    note.update_save_path(new_path)
+                            # 更新应用程序的数据目录
+                            self.app.data_dir = new_path
+                            print("保存路径已应用到所有便签")
+                        except Exception as e:
+                            print(f"更新便签保存路径时出错: {str(e)}")
+                            
+                        QMessageBox.information(self, "成功", "保存路径已更改，数据已移动到新位置")
+                    else:
+                        QMessageBox.warning(self, "错误", "移动数据失败，保存路径未更改")
+                        print("移动数据失败，保存路径未更改")
+                        # 不返回，继续接受对话框
+            
+            # 确保设置被保存
+            self.qsettings.sync()
+            print("设置已同步保存")
+            
+            # 标记设置已应用
+            self.settings_applied = True
+            
+            # 正常接受对话框
+            self.accept()
+            print("设置对话框已接受并关闭")
+        except Exception as e:
+            print(f"保存设置时出错: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.warning(self, "错误", f"保存设置失败: {str(e)}")
+            # 即使出错也接受对话框
+            self.accept()
 
 class StickyNoteApp(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
         
+        # 阻止程序在最后一个窗口关闭时退出
+        self.setQuitOnLastWindowClosed(False)
+        
         # 设置应用程序信息
         self.setApplicationName("StickyNote")
         self.setApplicationVersion("1.0.0")
         self.setOrganizationName("MyCompany")
+        
+        # 初始化应用程序设置
+        self.settings = QSettings("MyCompany", "StickyNoteApp")
         
         # 初始化便签列表和默认大小
         self.notes = []
@@ -1577,7 +1651,9 @@ class StickyNoteApp(QApplication):
             self.app_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
         
         # 创建数据目录
-        self.data_dir = os.path.join(self.app_dir, "data")
+        default_save_path = os.path.join(self.app_dir, "data")
+        save_path = self.settings.value("save_path", default_save_path)
+        self.data_dir = save_path
         os.makedirs(self.data_dir, exist_ok=True)
         
         # 设置工作目录为程序所在目录
@@ -1586,12 +1662,8 @@ class StickyNoteApp(QApplication):
         # 初始化系统托盘
         self.init_tray()
         
-        # 加载便签
-        # Todo: 加载便签
-        # self.load_notes()
-        
-        # 创建新便签
-        # self.create_note()
+        # 创建第一个便签
+        self.create_note()
 
     def init_tray(self):
         # 创建一个隐藏的窗口作为系统托盘菜单的父窗口
@@ -1624,7 +1696,7 @@ class StickyNoteApp(QApplication):
         self.menu.addAction(setting_action)
 
         quit_action = QAction("退出", self.tray_menu_host)
-        quit_action.triggered.connect(self.quit_app)  # 修改为自定义的退出函数
+        quit_action.triggered.connect(self.quit_app)
         self.menu.addAction(quit_action)
 
         self.tray.setContextMenu(self.menu)
@@ -1633,17 +1705,13 @@ class StickyNoteApp(QApplication):
         self.tray.show()
 
         self.notes_visible = True
-        self.create_note()
 
     def create_note(self):
-        global note_counter
-        note = StickyNote(note_counter)
-        # 强制设置初始大小
-        note.resize(self.default_note_size)
-        note.setWindowIcon(QIcon(resource_path("sticky_note_icon.ico")))
-        note.show()
+        """创建新便签"""
+        note = StickyNote(len(self.notes), self)
         self.notes.append(note)
-        note_counter += 1
+        note.show()
+        return note
 
     def show_all_notes(self):
         for note in self.notes:
@@ -1669,8 +1737,25 @@ class StickyNoteApp(QApplication):
             self.menu.popup(QCursor.pos())
 
     def show_settings(self):
-        dlg = SettingsDialog(self)
-        dlg.exec_()
+        """显示设置对话框"""
+        try:
+            # 确保对话框是类的成员变量，避免被垃圾回收
+            self.settings_dialog = SettingsDialog(self)
+            
+            # 使用 QDialog.exec_() 而不是 .show() 来显示对话框
+            result = self.settings_dialog.exec_()
+            
+            # 处理结果
+            if result == QDialog.Accepted:
+                print("设置已保存")
+            else:
+                print("设置已取消")
+                
+        except Exception as e:
+            print(f"显示设置对话框时出错: {str(e)}")
+            QMessageBox.warning(None, "错误", f"无法打开设置对话框: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def quit_app(self):
         """自定义退出函数，确保保存所有便签内容并正确清理资源"""
@@ -1696,6 +1781,26 @@ class StickyNoteApp(QApplication):
         finally:
             # 确保应用程序退出
             QTimer.singleShot(100, self.quit)  # 使用延迟确保清理完成后再退出
+
+    def load_notes(self):
+        """加载已保存的便签"""
+        try:
+            note_count = self.settings.value("note_count", 0, type=int)
+            
+            for i in range(note_count):
+                note_id = self.settings.value(f"note_{i}/id", i, type=int)
+                if note_id is not None:
+                    note = StickyNote(note_id, self)
+                    self.notes.append(note)
+                    note.show()
+            
+            if not self.notes:  # 如果没有加载到任何便签
+                self.create_note()
+        except Exception as e:
+            print(f"加载便签时出错: {str(e)}")
+            # 如果加载失败，创建一个新便签
+            if not self.notes:
+                self.create_note()
 
 if __name__ == '__main__':
     # 检查是否已有实例在运行
