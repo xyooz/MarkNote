@@ -533,7 +533,8 @@ class StickyNote(QWidget):
 
         # 获取保存路径
         app_settings = QSettings("MyCompany", "StickyNoteApp")
-        save_path = app_settings.value("save_path", os.path.join(os.path.expanduser("~"), "StickyNotes"))
+        default_save_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data")
+        save_path = app_settings.value("save_path", default_save_path)
         os.makedirs(save_path, exist_ok=True)
         
         # 修改设置保存路径
@@ -556,6 +557,10 @@ class StickyNote(QWidget):
         self.auto_save_timer = None  # 自动保存计时器
         self.bg_color = self.settings.value("bg_color", "#fefae0")
 
+        # 在加载设置时使用默认字体
+        self.default_font_family = app_settings.value("default_font_family", "SF Pro Text")
+        self.default_font_size = app_settings.value("default_font_size", 13, type=int)
+
         # 创建主布局
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -563,7 +568,7 @@ class StickyNote(QWidget):
 
         # 创建顶部按钮区域
         self.top_bar = QWidget()
-        self.top_bar.setFixedHeight(40)
+        self.top_bar.setFixedHeight(48)  # 增加顶栏高度
         self.top_bar.setStyleSheet(f"""
             QWidget {{
                 background-color: {self.bg_color};
@@ -573,16 +578,23 @@ class StickyNote(QWidget):
             }}
         """)
         top_bar_layout = QHBoxLayout()
-        top_bar_layout.setContentsMargins(14, 0, 14, 0)
-        top_bar_layout.setSpacing(14)
+        top_bar_layout.setContentsMargins(16, 0, 16, 0)  # 增加左右边距
+        top_bar_layout.setSpacing(16)  # 增加按钮间距
 
         # 创建标题标签
         self.title_label = QLabel(f"📝 便签 {id}")
         self.title_label.setStyleSheet("""
             QLabel {
-                color: #666;
-                font-size: 18px;
+                color: #2c3e50;
+                font-size: 20px;
                 font-weight: 500;
+                font-family: "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+                padding: 0 4px;
+                background: transparent;
+                border-radius: 4px;
+            }
+            QLabel:hover {
+                background: rgba(0, 0, 0, 0.05);
             }
         """)
         top_bar_layout.addWidget(self.title_label)
@@ -591,24 +603,24 @@ class StickyNote(QWidget):
         self.save_status = QLabel("")
         self.save_status.setStyleSheet("""
             QLabel {
-                color: #666;
-                font-size: 18px;
+                color: #007acc;
+                font-size: 16px;
+                font-family: "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+                margin-left: -8px;  /* 让状态点靠近标题 */
             }
         """)
         top_bar_layout.addWidget(self.save_status)
 
-        top_bar_layout.addStretch()
-
-        # 添加待办按钮
-        self.todo_btn = QPushButton("✓")
-        self.todo_btn.setFixedSize(28, 28)
+        # 添加待办按钮（移动到字体按钮后面）
+        self.todo_btn = QPushButton("✅")
+        self.todo_btn.setFixedSize(31, 31)  # 增大按钮尺寸
         self.todo_btn.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
                 color: #666;
                 border: none;
-                border-radius: 14px;
-                font-size: 16px;
+                border-radius: 16px;
+                font-size: 18px;
             }
             QPushButton:hover {
                 background-color: rgba(0, 0, 0, 0.08);
@@ -623,15 +635,15 @@ class StickyNote(QWidget):
         top_bar_layout.addWidget(self.todo_btn)
 
         # 添加固定按钮
-        self.pin_btn = QPushButton("📌")
-        self.pin_btn.setFixedSize(28, 28)
+        self.pin_btn = QPushButton("📌")  # 使用更清晰的图钉图标
+        self.pin_btn.setFixedSize(31, 31)  # 增大按钮尺寸
         self.pin_btn.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
                 color: #666;
                 border: none;
-                border-radius: 14px;
-                font-size: 16px;
+                border-radius: 16px;
+                font-size: 18px;
             }
             QPushButton:hover {
                 background-color: rgba(0, 0, 0, 0.08);
@@ -651,39 +663,19 @@ class StickyNote(QWidget):
         self.update_pin_button_text()
         top_bar_layout.addWidget(self.pin_btn)
 
-        # 添加关闭按钮
-        self.close_btn = QPushButton("×")
-        self.close_btn.setFixedSize(28, 28)
-        self.close_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #666;
-                border: none;
-                border-radius: 14px;
-                font-size: 22px;
-            }
-            QPushButton:hover {
-                background-color: rgba(244, 67, 54, 0.1);
-                color: #f44336;
-            }
-            QPushButton:pressed {
-                background-color: rgba(244, 67, 54, 0.2);
-                color: #d32f2f;
-            }
-        """)
-        self.close_btn.clicked.connect(self.close)
-        top_bar_layout.addWidget(self.close_btn)
-
         # 添加预览切换按钮
-        self.preview_btn = QPushButton("👁")
-        self.preview_btn.setFixedSize(28, 28)
+        self.preview_btn = QPushButton("👁️")  # 使用更清晰的眼睛图标
+        self.preview_btn.setFixedSize(31, 31)  # 增大按钮尺寸
         self.preview_btn.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
                 color: #666;
                 border: none;
-                border-radius: 14px;
-                font-size: 16px;
+                border-radius: 16px;
+                font-size: 24px;  /* 增大字体大小以确保图标清晰 */
+                font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Noto Sans Symbols", "Noto Sans Symbols2", sans-serif;  /* 增加更多emoji字体支持 */
+                padding: 0;  /* 移除内边距 */
+                line-height: 32px;  /* 确保垂直居中 */
             }
             QPushButton:hover {
                 background-color: rgba(0, 0, 0, 0.08);
@@ -697,9 +689,28 @@ class StickyNote(QWidget):
         self.preview_btn.setToolTip("切换预览 (Ctrl+E)")
         top_bar_layout.addWidget(self.preview_btn)
 
-        # 添加预览快捷键
-        self.preview_shortcut = QShortcut(QKeySequence("Ctrl+E"), self)
-        self.preview_shortcut.activated.connect(self.toggle_preview)
+        # 添加关闭按钮
+        self.close_btn = QPushButton("❌")  # 使用更清晰的关闭图标
+        self.close_btn.setFixedSize(31, 31)  # 增大按钮尺寸
+        self.close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #666;
+                border: none;
+                border-radius: 16px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background-color: rgba(244, 67, 54, 0.1);
+                color: #f44336;
+            }
+            QPushButton:pressed {
+                background-color: rgba(244, 67, 54, 0.2);
+                color: #d32f2f;
+            }
+        """)
+        self.close_btn.clicked.connect(self.close)
+        top_bar_layout.addWidget(self.close_btn)
 
         self.top_bar.setLayout(top_bar_layout)
         main_layout.addWidget(self.top_bar)
@@ -802,7 +813,7 @@ class StickyNote(QWidget):
         height = self.height()
 
         # 顶部栏区域显示默认光标
-        if y < 40:  # 调整为顶部栏实际高度
+        if y < 48:  # 调整为顶部栏实际高度
             return Qt.ArrowCursor
 
         # 边界区域的判断
@@ -833,7 +844,7 @@ class StickyNote(QWidget):
                 return
 
             # 如果点击在顶部栏，处理窗口移动
-            if event.pos().y() < 40:
+            if event.pos().y() < 48:
                 self.drag_pos = event.globalPos() - self.frameGeometry().topLeft()
                 self.is_resizing = False
                 self.is_dragging = True
@@ -1095,6 +1106,13 @@ class StickyNote(QWidget):
             self.bg_color = self.settings.value('bg_color', self.bg_color)
             self.is_position_fixed = self.settings.value('is_position_fixed', False, type=bool)
             
+            # 加载字体设置，使用应用程序级别的默认设置
+            app_settings = QSettings("MyCompany", "StickyNoteApp")
+            font_family = app_settings.value("default_font_family", "SF Pro Text")
+            font_size = app_settings.value("default_font_size", 13, type=int)
+            font = QFont(font_family, font_size)
+            self.text_edit.setFont(font)
+            
             self.update_text_style()
             
             # 重置修改状态
@@ -1120,10 +1138,10 @@ class StickyNote(QWidget):
     def update_pin_button_text(self):
         # 根据固定状态更新按钮文本和提示
         if self.is_position_fixed:
-            self.pin_btn.setText("📍")  # 使用不同的图标表示已固定
+            self.pin_btn.setText("📍")  # 使用更清晰的固定图标
             self.pin_btn.setToolTip("已固定位置 (点击解除固定)")
         else:
-            self.pin_btn.setText("📌")  # 使用原始图标表示未固定
+            self.pin_btn.setText("📌")  # 使用更清晰的未固定图标
             self.pin_btn.setToolTip("点击固定位置")
 
     def handle_content_changed(self):
@@ -1148,10 +1166,11 @@ class StickyNote(QWidget):
             self.save_status.setStyleSheet("""
                 QLabel {
                     color: #007acc;
-                    font-size: 18px;
+                    font-size: 16px;
+                    font-family: "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+                    margin-left: -8px;
                 }
             """)
-            # 添加提示文本
             self.save_status.setToolTip("有未保存的更改 (Ctrl+S 保存)")
         else:
             self.save_status.setText("")
@@ -1162,8 +1181,13 @@ class StickyNote(QWidget):
         try:
             settings_dict = {}
             
-            # 保存文本内容
-            text_content = self.text_edit.toPlainText()
+            # 保存文本内容（确保保存的是原始 Markdown 文本）
+            if self.text_edit.is_preview_mode:
+                # 如果当前是预览模式，使用保存的原始内容
+                text_content = self.text_edit.last_content
+            else:
+                # 如果是编辑模式，使用当前内容
+                text_content = self.text_edit.toPlainText()
             settings_dict['text_content'] = text_content
             
             # 保存待办事项列表
@@ -1215,7 +1239,9 @@ class StickyNote(QWidget):
         self.save_status.setStyleSheet("""
             QLabel {
                 color: #4CAF50;
-                font-size: 18px;
+                font-size: 16px;
+                font-family: "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+                margin-left: -8px;
             }
         """)
         
@@ -1231,11 +1257,32 @@ class StickyNote(QWidget):
         """切换预览模式"""
         self.text_edit.toggle_preview()
         if self.text_edit.is_preview_mode:
-            self.preview_btn.setText("✎")  # 切换为编辑图标
+            self.preview_btn.setText("✏️")  # 使用卡通 emoji 铅笔图标
             self.preview_btn.setToolTip("切换编辑 (Ctrl+E)")
         else:
-            self.preview_btn.setText("👁")  # 切换为预览图标
+            self.preview_btn.setText("👁️")  # 使用眼睛图标
             self.preview_btn.setToolTip("切换预览 (Ctrl+E)")
+
+        # 更新按钮样式以确保图标正确显示
+        self.preview_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #666;
+                border: none;
+                border-radius: 16px;
+                font-size: 24px;  /* 增大字体大小以确保图标清晰 */
+                font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Noto Sans Symbols", "Noto Sans Symbols2", sans-serif;  /* 增加更多emoji字体支持 */
+                padding: 0;  /* 移除内边距 */
+                line-height: 32px;  /* 确保垂直居中 */
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.08);
+                color: #007acc;
+            }
+            QPushButton:pressed {
+                background-color: rgba(0, 0, 0, 0.12);
+            }
+        """)
 
     def handle_todo_changed(self):
         """处理待办事项变化"""
@@ -1272,7 +1319,7 @@ class SettingsDialog(QDialog):
         super().__init__()
         self.app = app
         self.setWindowTitle("设置")
-        self.setFixedSize(400, 200)
+        self.setFixedSize(400, 300)  # 增加高度以容纳字体设置
 
         layout = QVBoxLayout()
 
@@ -1280,6 +1327,45 @@ class SettingsDialog(QDialog):
         self.autostart_checkbox = QCheckBox("开机启动", self)
         self.autostart_checkbox.setChecked(self.is_autostart_enabled())
         layout.addWidget(self.autostart_checkbox)
+
+        # 字体设置
+        font_group = QWidget()
+        font_layout = QVBoxLayout(font_group)
+        font_layout.setContentsMargins(0, 10, 0, 10)
+        
+        font_title = QLabel("字体设置")
+        font_title.setStyleSheet("font-weight: bold;")
+        font_layout.addWidget(font_title)
+        
+        font_row = QWidget()
+        font_row_layout = QHBoxLayout(font_row)
+        font_row_layout.setContentsMargins(0, 0, 0, 0)
+        
+        font_label = QLabel("字体：")
+        self.font_combo = QFontComboBox()
+        current_font = self.app.notes[0].text_edit.font() if self.app.notes else QFont("SF Pro Text", 13)
+        self.font_combo.setCurrentFont(current_font)
+        
+        font_row_layout.addWidget(font_label)
+        font_row_layout.addWidget(self.font_combo)
+        
+        font_layout.addWidget(font_row)
+        
+        size_row = QWidget()
+        size_row_layout = QHBoxLayout(size_row)
+        size_row_layout.setContentsMargins(0, 0, 0, 0)
+        
+        size_label = QLabel("字号：")
+        self.size_spin = QSpinBox()
+        self.size_spin.setRange(8, 72)
+        self.size_spin.setValue(current_font.pointSize())
+        
+        size_row_layout.addWidget(size_label)
+        size_row_layout.addWidget(self.size_spin)
+        size_row_layout.addStretch()
+        
+        font_layout.addWidget(size_row)
+        layout.addWidget(font_group)
 
         # 数据保存路径设置
         path_group = QWidget()
@@ -1318,7 +1404,7 @@ class SettingsDialog(QDialog):
     def get_current_save_path(self):
         """获取当前保存路径"""
         settings = QSettings("MyCompany", "StickyNoteApp")
-        default_path = os.path.join(os.path.expanduser("~"), "StickyNotes")
+        default_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data")
         return settings.value("save_path", default_path)
 
     def browse_save_path(self):
@@ -1355,37 +1441,54 @@ class SettingsDialog(QDialog):
             return False
 
     def save(self):
-        # 保存开机启动设置
-        self.set_autostart(self.autostart_checkbox.isChecked())
-        
-        # 保存路径设置
-        new_path = self.path_edit.text()
-        settings = QSettings("MyCompany", "StickyNoteApp")
-        old_path = settings.value("save_path", os.path.join(os.path.expanduser("~"), "StickyNotes"))
-        
-        if new_path != old_path:
-            # 询问用户是否确认更改
-            reply = QMessageBox.question(
-                self,
-                "确认更改",
-                "更改保存路径将移动所有便签数据到新位置，是否继续？",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
+        try:
+            # 保存开机启动设置
+            self.set_autostart(self.autostart_checkbox.isChecked())
             
-            if reply == QMessageBox.Yes:
-                # 移动数据
-                if self.move_data_to_new_path(old_path, new_path):
-                    settings.setValue("save_path", new_path)
-                    # 更新所有便签的保存路径
-                    for note in self.app.notes:
-                        note.update_save_path(new_path)
-                    QMessageBox.information(self, "成功", "保存路径已更改，数据已移动到新位置")
-                else:
-                    QMessageBox.warning(self, "错误", "移动数据失败，保存路径未更改")
-                    return
-        
-        self.accept()
+            # 保存字体设置
+            font = self.font_combo.currentFont()
+            font.setPointSize(self.size_spin.value())
+            settings = QSettings("MyCompany", "StickyNoteApp")
+            settings.setValue("default_font_family", font.family())
+            settings.setValue("default_font_size", font.pointSize())
+            
+            # 应用字体设置到所有便签
+            for note in self.app.notes:
+                note.text_edit.setFont(font)
+                note.settings.setValue("font_family", font.family())
+                note.settings.setValue("font_size", font.pointSize())
+            
+            # 保存路径设置
+            new_path = self.path_edit.text()
+            old_path = settings.value("save_path", os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "data"))
+            
+            # 只有当路径真正改变时才进行移动
+            if new_path != old_path and os.path.normpath(new_path) != os.path.normpath(old_path):
+                # 询问用户是否确认更改
+                reply = QMessageBox.question(
+                    self,
+                    "确认更改",
+                    "更改保存路径将移动所有便签数据到新位置，是否继续？",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    # 移动数据
+                    if self.move_data_to_new_path(old_path, new_path):
+                        settings.setValue("save_path", new_path)
+                        # 更新所有便签的保存路径
+                        for note in self.app.notes:
+                            note.update_save_path(new_path)
+                        QMessageBox.information(self, "成功", "保存路径已更改，数据已移动到新位置")
+                    else:
+                        QMessageBox.warning(self, "错误", "移动数据失败，保存路径未更改")
+                        return
+            
+            self.accept()
+        except Exception as e:
+            print(f"保存设置时出错: {str(e)}")
+            QMessageBox.warning(self, "错误", f"保存设置失败: {str(e)}")
 
     def is_autostart_enabled(self):
         try:
@@ -1406,42 +1509,91 @@ class SettingsDialog(QDialog):
             return False
 
     def set_autostart(self, enable):
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Run",
-            0,
-            winreg.KEY_SET_VALUE
-        )
-        
         try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0,
+                winreg.KEY_SET_VALUE
+            )
+            
             if enable:
-                # 获取当前程序的路径
-                app_path = sys.executable
-                if hasattr(sys, '_MEIPASS'):  # 如果是打包后的程序
+                # 获取当前程序的完整路径
+                if getattr(sys, 'frozen', False):
+                    # 如果是打包后的程序
+                    app_path = sys.executable
+                else:
+                    # 如果是开发环境
                     app_path = os.path.abspath(sys.argv[0])
+                
+                # 确保路径是绝对路径
+                app_path = os.path.abspath(app_path)
+                
+                # 创建数据目录
+                data_dir = os.path.join(os.path.dirname(app_path), "data")
+                os.makedirs(data_dir, exist_ok=True)
+                
+                # 设置工作目录为程序所在目录
+                working_dir = os.path.dirname(app_path)
+                
+                # 使用完整路径和引号包裹
+                command = f'"{app_path}"'
                 winreg.SetValueEx(
                     key,
                     "StickyNote",
                     0,
                     winreg.REG_SZ,
-                    f'"{app_path}"'
+                    command
                 )
             else:
                 try:
                     winreg.DeleteValue(key, "StickyNote")
                 except WindowsError:
                     pass
-        finally:
             winreg.CloseKey(key)
+        except Exception as e:
+            print(f"设置开机启动时出错: {str(e)}")
+            QMessageBox.warning(self, "错误", f"设置开机启动失败: {str(e)}")
 
 class StickyNoteApp(QApplication):
     def __init__(self, argv):
         super().__init__(argv)
-        self.notes = []
         
-        # 设置默认的便签大小
+        # 设置应用程序信息
+        self.setApplicationName("StickyNote")
+        self.setApplicationVersion("1.0.0")
+        self.setOrganizationName("MyCompany")
+        
+        # 初始化便签列表和默认大小
+        self.notes = []
         self.default_note_size = QSize(450, 600)
         
+        # 获取程序运行目录
+        if getattr(sys, 'frozen', False):
+            # 如果是打包后的程序
+            self.app_dir = os.path.dirname(sys.executable)
+        else:
+            # 如果是开发环境
+            self.app_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        
+        # 创建数据目录
+        self.data_dir = os.path.join(self.app_dir, "data")
+        os.makedirs(self.data_dir, exist_ok=True)
+        
+        # 设置工作目录为程序所在目录
+        os.chdir(self.app_dir)
+        
+        # 初始化系统托盘
+        self.init_tray()
+        
+        # 加载便签
+        # Todo: 加载便签
+        # self.load_notes()
+        
+        # 创建新便签
+        # self.create_note()
+
+    def init_tray(self):
         # 创建一个隐藏的窗口作为系统托盘菜单的父窗口
         self.tray_menu_host = QWidget()
         self.tray_menu_host.hide()
@@ -1521,17 +1673,29 @@ class StickyNoteApp(QApplication):
         dlg.exec_()
 
     def quit_app(self):
-        """自定义退出函数，确保保存所有便签内容"""
+        """自定义退出函数，确保保存所有便签内容并正确清理资源"""
         try:
             # 保存所有便签的内容
             for note in self.notes:
                 if note.is_modified:
                     note.save_content()
+                # 关闭便签窗口
+                note.close()
             print("所有便签内容已保存")
+            
+            # 清理系统托盘图标
+            self.tray.hide()
+            self.tray.deleteLater()
+            
+            # 关闭托盘菜单宿主窗口
+            self.tray_menu_host.close()
+            self.tray_menu_host.deleteLater()
+            
         except Exception as e:
             print(f"保存便签内容时出错: {str(e)}")
         finally:
-            self.quit()
+            # 确保应用程序退出
+            QTimer.singleShot(100, self.quit)  # 使用延迟确保清理完成后再退出
 
 if __name__ == '__main__':
     # 检查是否已有实例在运行
