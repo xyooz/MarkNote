@@ -23,7 +23,9 @@
 *   **自由拖动与缩放**: 轻松移动和调整 MarkNote 大小（未固定时）。
 
 ## 📸 截图 
-
+<img src="screenshots/markdown.png">
+<img src="screenshots/view.png">
+<img src="screenshots/settings.png">
 <!-- 在这里添加你的应用截图 -->
 <!-- 例如： -->
 <!-- <img src="screenshots/main_window.png" width="400" alt="主界面"> -->
@@ -31,7 +33,7 @@
 
 ## 🚀 下载和使用 (推荐给普通用户)
 
-1.  前往本项目的 [Releases 页面](link-to-your-github-releases)。
+1.  前往本项目的 [Releases 页面](https://github.com/xyooz/MarkNote/releases)。
 2.  下载最新版本的 `MarkNote-vX.Y.Z.zip` (或类似命名的文件)。
 3.  解压下载的 ZIP 文件。
 4.  双击运行解压后文件夹中的 `MarkNote.exe` 文件即可开始使用。
@@ -49,7 +51,7 @@
 **步骤:**
 1.  **克隆仓库:**
     ```bash
-    git clone https://github.com/xyooz/marknote.git # 替换成你的仓库地址
+    git clone https://github.com/xyooz/marknote.git 
     cd marknote
     ```
 
@@ -109,10 +111,10 @@
 *   **字体设置**: 选择应用程序默认使用的字体和字号。
 *   **数据保存位置**: 指定 MarkNote 数据文件（`.ini` 文件）的存储目录。
 
-## 🤝 贡献 (可选)
+## 🤝 贡献 
 
 欢迎提交 Pull Requests 或 Issues 来改进此项目。
 
-## 📄 许可证 (可选)
+## 📄 许可证 
 
 本项目采用 [MIT 许可证](LICENSE)。 <!-- 如果你有许可证文件 --> 
