@@ -117,6 +117,7 @@
 ## 📄 许可证 
 
 本项目采用 [MIT 许可证](LICENSE)。 <!-- 如果你有许可证文件 --> 
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=xyooz/MarkNote&type=Date)](https://www.star-history.com/#xyooz/MarkNote&Date)
